@@ -48,9 +48,11 @@ Ståle Undheim <su@ums.no>
 1. Kjapp inføring i Scala, case classes og pattern matching
 2. Akka Hello World
 3. Hva er en Actor
-4. Nettverk og remoting
-5. Clustering
-6. Persistence
+4. Hvordan skiller en Actor seg fra ett vanlig objekt
+5. Hva egner et actor system seg til
+6. Nyttige Features
+7. Eksempler
+8. Spørsmål
 
 ---
 
@@ -201,7 +203,7 @@ object Main extends App {
 --
 5. Svar skjer via sender, snarere enn stack
 ---
-## Programmering med Actors
+## Hva egner et actor system seg til
 ----
 --
 
@@ -211,8 +213,33 @@ object Main extends App {
 2. Enkelt å lage mikro services
 --
 
-3. 
+3. Worker pools
 
+---
+## Nyttige features
+----
+--
+
+1. Nettverks støtte. Om en snakker med en local eller remote actor, så gjøres det på samme måte
+--
+
+2. Routing. Dette er en collection av actors, og en kan forwarde meldinger til disse
+--
+
+3. Clustering støtte. Hver node i ett cluster kan ha en eller flere roller
+--
+
+4. Supervision gjør at actors restarter ved exceptions, self-healing hvis korrupt state er årsaken til feil.
+--
+
+5. Camel støtte gjør for enkel integrasjon
+
+---
+## Eksempler - Camel consume
+---
+## Eksempler - Networking
+---
+## Eksempler - Cluster singleton
 ---
 ## Spørsmål?
 
@@ -226,7 +253,6 @@ Linker:
     </script>
     <script type="text/javascript">
       var slideshow = remark.create();
-      slideshow.gotoSlide(25)
     </script>
   </body>
 </html>
