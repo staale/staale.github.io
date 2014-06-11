@@ -51,8 +51,9 @@ Ståle Undheim <su@ums.no>
 4. Hvordan skiller en Actor seg fra ett vanlig objekt
 5. Hva egner et actor system seg til
 6. Nyttige Features
-7. Eksempler
-8. Spørsmål
+7. UMS SendingPlan
+8. Andre Eksempler
+9. Spørsmål
 
 ---
 
@@ -164,6 +165,27 @@ object Main extends App {
 }
 ```
 ---
+## Akka actors - subjektiv historie
+--
+
+* Scala hadde actors basert på Erlangs actors
+--
+
+* Erlang ble utviklet av Ericsson for å bruke i dere system
+
+--
+* Erlang har actors for å sikre høy oppetid
+
+--
+* Akka begynte som et bibliotek som alternativ til Scala Actors
+
+--
+* Scala actors er deprecated til fordel for Akka
+
+--
+![History](History.png)
+
+---
 ## Hva er en Actor
 ----
 --
@@ -171,19 +193,25 @@ object Main extends App {
 1. Implementeres av en klasse som extender Actor
 --
 
-2. Har en state
+2. Har en meldingsboks
 --
 
-3. Har atferd (behaviour) som reagerer på meldinger basert på state
+3. Har en state
 --
 
-4. Har en meldingsboks
+4. Har atferd (behaviour) som reagerer på meldinger basert på state
 --
 
 5. Kan ha barn (children)
 --
 
-6. Kan ha en Supervisor Strategy
+6. Har en parent (supervisor)
+--
+
+7. Kan ha en Supervisor Strategy
+--
+
+8. Kan addresseres via en path (root er /user)
 ---
 ## Hva gjør en actor forskjellig fra ett vanlig objekt
 ----
@@ -192,28 +220,40 @@ object Main extends App {
 1. Ingen direkte tilgang til objektet, alt skjer igjennom en actorRef.
 --
 
-2. Kun en trå om gangen i en actor, Akka gjør at en ikke trenger locks.
+2. Asynkron konstruksjon.
 --
 
-3. Mulighet til å endre rekkefølgen en behandler meldinger.
+3. Kun en trå om gangen i en actor, Akka gjør at en ikke trenger locks.
+--
+
+4. Mulighet til å endre rekkefølgen en behandler meldinger.
 
 --
-4. Asyynkron model er normalen, snarere enn en synkron model. Lockfree programming.
+5. Asyynkron model er normalen, snarere enn en synkron model. Lockfree programming.
 
 --
-5. Svar skjer via sender, snarere enn stack
+6. Svar skjer via sender, snarere enn stack
 ---
 ## Hva egner et actor system seg til
 ----
 --
 
-1. Actors er naturlig for å modelere domene objekter
+1. Alt mulig.
 --
 
-2. Enkelt å lage mikro services
+2. Message passing gjør at en har loose coupling
 --
 
-3. Worker pools
+3. Asynkron model gjør at alt er multithreaded.
+--
+
+4. Actors er naturlig for å modelere domene objekter
+--
+
+5. Enkelt å lage mikro services
+--
+
+6. Worker pools
 
 ---
 ## Nyttige features
@@ -234,6 +274,93 @@ object Main extends App {
 
 5. Camel støtte gjør for enkel integrasjon
 
+---
+## Eksempel: UMS - SendingPlan
+--
+
+### Oppgave
+* Håndtere en enkelt utsending av meldinger over en eller flere kanaler.
+* Skedulering av utsending i fremtiden
+* Clustering - high availability
+* Håndtere status av sending (scheduled, sending, done)
+* Håndtere flere typer kanaler, og feil i kanaler, timeouts
+* Kanselering
+---
+## SendingPlan, overordnet
+
+![Overview](SendingPlan-Overview.png)
+---
+## SendingPlanRepository
+
+![Overview](SendingPlan-Repository.png)
+---
+## SendingPlanRepository
+
+* Alle meldinger til SendingPlan objekter skjer via denne actoren.
+--
+
+* Cluster shariding: kun en instans av hver SendingPlan i ett cluster
+---
+## SendingPlan
+
+![Overview](SendingPlan-SendingPlan.png)
+---
+## SendingPlan
+
+* Bruker Akka persistence, implementerer EventsourcedProcessor
+--
+
+* Bruker context.setRecieveTimeout til å ta selvmord hvis ubrukt i 30 sekunder
+--
+
+* Tar i mot meldinger om å konstruere kanaler:
+
+```scala
+case class AddChannel(sendingId: String, channelProps: Props)
+```
+--
+* Bruker scheduler for å starte alerts i fremtiden
+---
+## Scheduler
+
+![Overview](SendingPlan-Scheduler.png)
+---
+## Scheduler
+
+* Cluster singleton, kun en i ett cluster
+--
+
+* Bruker Akka persistence, all scheduling starter igjen ved konstruksjon
+--
+
+* Scheduling:
+
+```scala
+case class Schedule(when: DateTime, target: ActorRef, message: Any)
+```
+--
+
+* Scheduler lagrer target med actor path og addresse
+---
+## Channel
+
+![Overview](SendingPlan-Channel.png)
+---
+## Channel
+
+* Lagrer instillinger for sending (kanal spesifikt).
+--
+
+* State lagres via persistence og event sourcing
+--
+
+* Bruker en channel (ungår redelivery ved restart) for å lagre mottakere under Recipients
+--
+
+* Bruker scheduler for å kontrollere start, stop, og timeouts på individuelle sendinger
+--
+
+* Bruker sender for å sende meldinger til mottaker
 ---
 ## Eksempler - Camel consumer
 --
@@ -270,7 +397,23 @@ class RssReader extends Actor with Consumer with ActorLogging {
 ```
 ---
 ## Eksempler - Networking
---
+---
+## Eksempler - Networking, Config
+
+```scala
+object ConfigHelper {
+  def withPort(port: Int) = s"""
+      |akka {
+      |  actor.provider = "akka.remote.RemoteActorRefProvider"
+      |  remote.netty.tcp.port = $port
+      |  remote.netty.tcp.hostname = localhost
+      |}
+    """.stripMargin
+
+}
+```
+---
+## Eksempler - Networking, Server
 
 ```scala
 object ServerMain extends App {
@@ -281,7 +424,7 @@ object ServerMain extends App {
 }
 ```
 ---
-## Eksempler - Networking
+## Eksempler - Networking, Server
 
 ```scala
 class Server extends Actor with ActorLogging {
@@ -303,6 +446,43 @@ class Server extends Actor with ActorLogging {
 }
 ```
 ---
+## Eksempler - Networking, Klient
+
+```scala
+object ClientMain extends App {
+  val config = ConfigHelper.withPort(2551)
+  val system = ActorSystem("client", ConfigFactory.parseString(config))
+
+  val server = system.actorSelection("akka.tcp://server@localhost:2550/user/server")
+
+  val clientRef = system.actorOf(Props(classOf[Client], server), "client")
+}
+```
+---
+## Eksempler - Networking, Klient
+
+```scala
+class Client(partner: ActorSelection) extends Actor with ActorLogging {
+
+  partner ! Identify(1)
+
+  context.system.scheduler.schedule(1 second, 1 second, self, "transmit")
+
+  override def receive = {
+    case ActorIdentity(1, Some(ref)) =>
+      log.info("Watching partner {}", ref)
+      context.watch(ref)
+
+    case "transmit" =>
+      partner ! "Time is " + DateTime.now()
+
+    case Terminated(ref) =>
+      log.info("Partner at {} terminated, shuting down", ref)
+      context.system.shutdown()
+  }
+}
+```
+---
 ## Eksempler - Cluster singleton
 ---
 ## Spørsmål?
@@ -317,7 +497,6 @@ Linker:
     </script>
     <script type="text/javascript">
       var slideshow = remark.create();
-      slideshow.gotoSlide(38)
     </script>
   </body>
 </html>
